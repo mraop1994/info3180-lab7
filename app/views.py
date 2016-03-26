@@ -7,6 +7,8 @@ from app.forms import LoginForm, ProfileForm, WishForm
 from werkzeug.utils import secure_filename
 from functools import wraps
 from bs4 import BeautifulSoup
+from passlib.apps import custom_app_context as pwd_context
+from itsdangerous import (TimedJSONWebSignatureSerializer as Serializer, BadSignature, SignatureExpired)
 
 
 app.secret_key = 'why would I tell you my secret key?'
@@ -21,6 +23,13 @@ login_manager.login_view = 'login'
 @login_manager.user_loader
 def load_user(id):
     return myprofile.query.get(int(id))
+
+
+@app.route('/api/token')
+@login_required
+def get_auth_token():
+    token = g.user.generate_auth_token()
+    return jsonify({ 'token': token.decode('ascii') })
     
 
 @app.before_request
@@ -67,13 +76,9 @@ def logout():
 def newprofile():
     if request.method == 'POST':
         form = ProfileForm()
-        firstname = request.form['firstname']
-        lastname = request.form['lastname']
-        sex = request.form['sex']
-        age = int(request.form['age'])
         email = request.form['email']
         password = request.form['password']
-        newProfile = myprofile(firstname=firstname, lastname=lastname, email=email, password=password, sex=sex, age=age)
+        newProfile = myprofile(email=email, password=password)
         db.session.add(newProfile)
         db.session.commit()
         profilefilter = myprofile.query.filter_by(email=newProfile.email).first()
@@ -86,14 +91,14 @@ def newprofile():
 @login_required
 def profile_view(userid):
     if g.user.is_authenticated:
-        profile_vars = {'id':g.user.userid, 'email':g.user.email, 'age':g.user.age, 'firstname':g.user.firstname, 'lastname':g.user.lastname, 'sex':g.user.sex}
+        profile_vars = {'id':g.user.userid, 'email':g.user.email}
         return render_template('profile_view.html',profile=profile_vars)
     
 
-@app.route('/addWish/', methods = ['POST','GET'])
-def addWish():
-    # profile = myprofile.query.filter_by(userid=userid).first()
-    # profile_vars = {'id':profile.userid, 'email':profile.email, 'age':profile.age, 'firstname':profile.firstname, 'lastname':profile.lastname, 'sex':profile.sex}
+@app.route('/profile/<id>/addurl', methods = ['POST','GET'])
+def addURL(id):
+    profile = myprofile.query.filter_by(userid=id).first()
+    profile_vars = {'id':profile.userid, 'email':profile.email}
     if request.method == 'POST':
         form = WishForm()
         url = request.form['url']
@@ -111,59 +116,8 @@ def addWish():
         if thumbnail_spec and thumbnail_spec['href']:
             images.append(thumbnail_spec['href'])
         return render_template('pickimage.html',images=images)
-        
-        # def image_dem():
-        #     image = """<img src="%s"><br />"""
-        #     for img in soup.find_all("img", class_="a-dynamic-image"):
-        #       if "sprite" not in img["src"]:
-        #           print image % urlparse.urljoin(url, img["src"])
-        #           print img['src']
-        # image_dem()
-        
-        
-        # title = request.form['title']
-        # description = request.form['description']
-        # url = request.form['url']
-        # return redirect(url_for('getPics'))
-    #     newWish = mywish(userid=userid, title=title, description=description, description_url=description_url)
-    #     db.session.add(newWish)
-    #     db.session.commit()
-    #     profilefilter = myprofile.query.filter_by(userid=newWish.userid).first()
-    #     return redirect('/profile/'+str(profilefilter.userid))
     form = WishForm()
-    return render_template('addWish.html',form=form)
-    
-    
-# @app.route('/getPics', methods = ['POST','GET'])
-# def getPics():
-#     form = WishForm()
-#     url = request.form['url']
-#     result = requests.get(url)
-#     data = result.text
-#     soup = BeautifulSoup(data, 'html.parser')
-#     og_image = (soup.find('meta', property='og:image') or
-#                         soup.find('meta', attrs={'name': 'og:image'}))
-#     if og_image and og_image['content']:
-#         print og_image['content']
-    
-#     thumbnail_spec = soup.find('link', rel='image_src')
-#     if thumbnail_spec and thumbnail_spec['href']:
-#         print thumbnail_spec['href']
-    
-#     def image_dem():
-#         image = """<img src="%s"><br />"""
-#         for img in soup.find_all("img", class_="a-dynamic-image"): #soup.findAll("img", src=True):
-#           if "sprite" not in img["src"]:
-#               print image % urlparse.urljoin(url, img["src"])
-#               print img['src']
-#     image_dem()
-#     return redirect('/profile/')
-
-
-@app.route('/addWish/<theimage>', methods = ['POST','GET'])
-def popDBwish(theimage):
-    print theimage['1']
-    return render_template(url_for('/'))
+    return render_template('addWish.html',form=form,profile=profile_vars)
 
 
 @app.route('/about/')

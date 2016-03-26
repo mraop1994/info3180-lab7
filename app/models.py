@@ -1,22 +1,43 @@
-from . import db  
+from passlib.apps import custom_app_context as pwd_context
+from itsdangerous import (TimedJSONWebSignatureSerializer as Serializer, BadSignature, SignatureExpired)
+from app import app
+from . import db
+
 class myprofile(db.Model):
     userid = db.Column(db.Integer, primary_key=True)
-    firstname = db.Column(db.String(80))
-    lastname = db.Column(db.String(80))
     email = db.Column(db.String(100), unique=True)
     password = db.Column(db.String(100))
-    age = db.Column(db.Integer)
-    sex = db.Column(db.String(8))
     
     
-    def __init__(self, firstname, lastname, email, password, age, sex):
-        self.firstname = firstname
-        self.lastname = lastname
+    def __init__(self, email, password):
         self.email = email
         self.password = password
-        self.age = age
-        self.sex = sex
     
+    
+    def hash_password(self, password):
+        self.password_hash = pwd_context.encrypt(password)
+    
+    
+    def verify_password(self, password):
+        return pwd_context.verify(password, self.password_hash)
+        
+    
+    def generate_auth_token(self, expiration = 600):
+        s = Serializer(app.config['SECRET_KEY'], expires_in = expiration)
+        return s.dumps({ 'id': self.id })
+
+    @staticmethod
+    def verify_auth_token(token):
+        s = Serializer(app.config['SECRET_KEY'])
+        try:
+            data = s.loads(token)
+        except SignatureExpired:
+            return None # valid token, but expired
+        except BadSignature:
+            return None # invalid token
+        user = myprofile.query.get(data['userid'])
+        return user
+        
     
     def is_authenticated(self):
         return True
@@ -41,13 +62,9 @@ class myprofile(db.Model):
 class mywish(db.Model):
     wishid = db.Column(db.Integer, primary_key=True)
     userid = db.Column(db.Integer, db.ForeignKey('myprofile.userid'))
-    title = db.Column(db.String(100))
-    description = db.Column(db.String(500))
     description_url = db.Column(db.String(500))
     
     
-    def __init__(self, userid, title, description, description_url):
+    def __init__(self, userid, description_url):
         self.userid = userid
-        self.title = title
-        self.description = description
         self.description_url = description_url
