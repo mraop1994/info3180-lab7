@@ -115,6 +115,11 @@ def addURL(id):
         thumbnail_spec = soup.find('link', rel='image_src')
         if thumbnail_spec and thumbnail_spec['href']:
             images.append(thumbnail_spec['href'])
+            print thumbnail_spec['href']
+        for img in soup.find_all("img", class_="a-dynamic-image"):
+            if "sprite" not in img["src"]:
+                images.append(img['src'])
+                print img['src']
         return render_template('pickimage.html',images=images)
     form = WishForm()
     return render_template('addWish.html',form=form,profile=profile_vars)
